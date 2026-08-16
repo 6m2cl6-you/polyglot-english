@@ -1,4 +1,4 @@
-name: Build Android Release APK v1.0.1
+name: Build Android APK v1.0.1
 
 on:
   push:
@@ -27,10 +27,9 @@ jobs:
           flutter create polyglot_master --platforms=android --org com.polyglotmaster.app
           cd polyglot_master
 
-          # 1. Setup Dependencies
           cat << 'EOF' > pubspec.yaml
           name: polyglot_master
-          description: "PolyglotMaster English - 100% Offline Learning Platform"
+          description: "PolyglotMaster English - 100% Offline Platform"
           publish_to: 'none'
           version: 1.0.1+2
 
@@ -43,43 +42,24 @@ jobs:
             flutter_riverpod: ^2.5.1
             shared_preferences: ^2.2.3
             flutter_tts: ^4.0.2
-            just_audio: ^0.9.37
-            audio_video_progress_bar: ^0.11.0
-            google_fonts: ^6.2.1
-            url_launcher: ^6.2.6
 
           flutter:
             uses-material-design: true
-            assets:
-              - assets/audio/podcasts/
           EOF
 
-          # 2. Adjust Android Configuration
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' android/app/build.gradle || true
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle || true
 
-          # 3. Create Placeholder Assets
-          mkdir -p assets/audio/podcasts
-          touch assets/audio/podcasts/london.mp3
-          touch assets/audio/podcasts/business.mp3
-
-          # 4. Inject Full Robust Application Code
           cat << 'EOF' > lib/main.dart
           import 'dart:convert';
-          import 'dart:math';
           import 'package:flutter/material.dart';
           import 'package:flutter_riverpod/flutter_riverpod.dart';
           import 'package:shared_preferences/shared_preferences.dart';
-          import 'package:google_fonts/google_fonts.dart';
           import 'package:flutter_tts/flutter_tts.dart';
-          import 'package:just_audio/just_audio.dart';
-          import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
-          import 'package:url_launcher/url_launcher.dart';
 
-          // =========================================
+          // ----------------------------------------------------
           // 1. DATA MODELS
-          // =========================================
-
+          // ----------------------------------------------------
           class UserProfile {
             final String fullName;
             final int age;
@@ -88,13 +68,7 @@ jobs:
             final int totalXp;
             final int streakDays;
             final int hearts;
-            final int maxHearts;
-            final DateTime? lastActivityDate;
-            final Map<String, int> skillScores;
-            final List<String> unlockedAchievements;
             final List<String> favoriteWords;
-            final Map<String, int> lessonProgress;
-            final Map<String, String> srsData;
 
             UserProfile({
               required this.fullName,
@@ -102,20 +76,9 @@ jobs:
               required this.cefrLevel,
               required this.dailyGoalMinutes,
               this.totalXp = 0,
-              this.streakDays = 0,
+              this.streakDays = 1,
               this.hearts = 5,
-              this.maxHearts = 5,
-              this.lastActivityDate,
-              this.skillScores = const {
-                'reading': 0,
-                'listening': 0,
-                'vocabulary': 0,
-                'grammar': 0,
-              },
-              this.unlockedAchievements = const [],
               this.favoriteWords = const [],
-              this.lessonProgress = const {},
-              this.srsData = const {},
             });
 
             Map<String, dynamic> toJson() => {
@@ -126,32 +89,18 @@ jobs:
               'totalXp': totalXp,
               'streakDays': streakDays,
               'hearts': hearts,
-              'maxHearts': maxHearts,
-              'lastActivityDate': lastActivityDate?.toIso8601String(),
-              'skillScores': skillScores,
-              'unlockedAchievements': unlockedAchievements,
               'favoriteWords': favoriteWords,
-              'lessonProgress': lessonProgress,
-              'srsData': srsData,
             };
 
             factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
               fullName: json['fullName'] ?? '',
-              age: json['age'] ?? 0,
+              age: json['age'] ?? 20,
               cefrLevel: json['cefrLevel'] ?? 'A1',
               dailyGoalMinutes: json['dailyGoalMinutes'] ?? 15,
               totalXp: json['totalXp'] ?? 0,
-              streakDays: json['streakDays'] ?? 0,
+              streakDays: json['streakDays'] ?? 1,
               hearts: json['hearts'] ?? 5,
-              maxHearts: json['maxHearts'] ?? 5,
-              lastActivityDate: json['lastActivityDate'] != null
-                  ? DateTime.parse(json['lastActivityDate'])
-                  : null,
-              skillScores: Map<String, int>.from(json['skillScores'] ?? {}),
-              unlockedAchievements: List<String>.from(json['unlockedAchievements'] ?? []),
               favoriteWords: List<String>.from(json['favoriteWords'] ?? []),
-              lessonProgress: Map<String, int>.from(json['lessonProgress'] ?? {}),
-              srsData: Map<String, String>.from(json['srsData'] ?? {}),
             );
 
             UserProfile copyWith({
@@ -162,13 +111,7 @@ jobs:
               int? totalXp,
               int? streakDays,
               int? hearts,
-              int? maxHearts,
-              DateTime? lastActivityDate,
-              Map<String, int>? skillScores,
-              List<String>? unlockedAchievements,
               List<String>? favoriteWords,
-              Map<String, int>? lessonProgress,
-              Map<String, String>? srsData,
             }) {
               return UserProfile(
                 fullName: fullName ?? this.fullName,
@@ -178,13 +121,7 @@ jobs:
                 totalXp: totalXp ?? this.totalXp,
                 streakDays: streakDays ?? this.streakDays,
                 hearts: hearts ?? this.hearts,
-                maxHearts: maxHearts ?? this.maxHearts,
-                lastActivityDate: lastActivityDate ?? this.lastActivityDate,
-                skillScores: skillScores ?? this.skillScores,
-                unlockedAchievements: unlockedAchievements ?? this.unlockedAchievements,
                 favoriteWords: favoriteWords ?? this.favoriteWords,
-                lessonProgress: lessonProgress ?? this.lessonProgress,
-                srsData: srsData ?? this.srsData,
               );
             }
           }
@@ -194,244 +131,23 @@ jobs:
             final String word;
             final String translation;
             final String phonetic;
-            final String partOfSpeech;
             final String exampleSentence;
             final String exampleTranslation;
-            final List<String> tags;
-            final int frequencyRank;
 
             VocabularyWord({
               required this.id,
               required this.word,
               required this.translation,
-              this.phonetic = '',
-              this.partOfSpeech = 'noun',
-              this.exampleSentence = '',
-              this.exampleTranslation = '',
-              this.tags = const [],
-              this.frequencyRank = 1000,
+              required this.phonetic,
+              required this.exampleSentence,
+              required this.exampleTranslation,
             });
-
-            Map<String, dynamic> toJson() => {
-              'id': id,
-              'word': word,
-              'translation': translation,
-              'phonetic': phonetic,
-              'partOfSpeech': partOfSpeech,
-              'exampleSentence': exampleSentence,
-              'exampleTranslation': exampleTranslation,
-              'tags': tags,
-              'frequencyRank': frequencyRank,
-            };
-
-            factory VocabularyWord.fromJson(Map<String, dynamic> json) => VocabularyWord(
-              id: json['id'] ?? '',
-              word: json['word'] ?? '',
-              translation: json['translation'] ?? '',
-              phonetic: json['phonetic'] ?? '',
-              partOfSpeech: json['partOfSpeech'] ?? 'noun',
-              exampleSentence: json['exampleSentence'] ?? '',
-              exampleTranslation: json['exampleTranslation'] ?? '',
-              tags: List<String>.from(json['tags'] ?? []),
-              frequencyRank: json['frequencyRank'] ?? 1000,
-            );
           }
 
-          class Lesson {
-            final String id;
-            final String title;
-            final String description;
-            final String cefrLevel;
-            final int orderIndex;
-            final int requiredXp;
-            final List<Exercise> exercises;
-            final List<String> vocabularyIds;
-
-            Lesson({
-              required this.id,
-              required this.title,
-              required this.description,
-              required this.cefrLevel,
-              required this.orderIndex,
-              this.requiredXp = 0,
-              this.exercises = const [],
-              this.vocabularyIds = const [],
-            });
-
-            Map<String, dynamic> toJson() => {
-              'id': id,
-              'title': title,
-              'description': description,
-              'cefrLevel': cefrLevel,
-              'orderIndex': orderIndex,
-              'requiredXp': requiredXp,
-              'exercises': exercises.map((e) => e.toJson()).toList(),
-              'vocabularyIds': vocabularyIds,
-            };
-
-            factory Lesson.fromJson(Map<String, dynamic> json) => Lesson(
-              id: json['id'] ?? '',
-              title: json['title'] ?? '',
-              description: json['description'] ?? '',
-              cefrLevel: json['cefrLevel'] ?? 'A1',
-              orderIndex: json['orderIndex'] ?? 0,
-              requiredXp: json['requiredXp'] ?? 0,
-              exercises: (json['exercises'] as List?)
-                  ?.map((e) => Exercise.fromJson(e))
-                  .toList() ?? [],
-              vocabularyIds: List<String>.from(json['vocabularyIds'] ?? []),
-            );
-          }
-
-          class Exercise {
-            final String id;
-            final String lessonId;
-            final int orderIndex;
-            final String type;
-            final String question;
-            final List<String> options;
-            final String correctAnswer;
-            final String explanation;
-            final int xpReward;
-
-            Exercise({
-              required this.id,
-              required this.lessonId,
-              required this.orderIndex,
-              required this.type,
-              required this.question,
-              this.options = const [],
-              this.correctAnswer = '',
-              this.explanation = '',
-              this.xpReward = 10,
-            });
-
-            Map<String, dynamic> toJson() => {
-              'id': id,
-              'lessonId': lessonId,
-              'orderIndex': orderIndex,
-              'type': type,
-              'question': question,
-              'options': options,
-              'correctAnswer': correctAnswer,
-              'explanation': explanation,
-              'xpReward': xpReward,
-            };
-
-            factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
-              id: json['id'] ?? '',
-              lessonId: json['lessonId'] ?? '',
-              orderIndex: json['orderIndex'] ?? 0,
-              type: json['type'] ?? 'singleChoice',
-              question: json['question'] ?? '',
-              options: List<String>.from(json['options'] ?? []),
-              correctAnswer: json['correctAnswer'] ?? '',
-              explanation: json['explanation'] ?? '',
-              xpReward: json['xpReward'] ?? 10,
-            );
-          }
-
-          class DialogueTurn {
-            final String speaker;
-            final String text;
-            final String translation;
-            final String? audioPath;
-
-            DialogueTurn({
-              required this.speaker,
-              required this.text,
-              required this.translation,
-              this.audioPath,
-            });
-
-            Map<String, dynamic> toJson() => {
-              'speaker': speaker,
-              'text': text,
-              'translation': translation,
-              'audioPath': audioPath,
-            };
-
-            factory DialogueTurn.fromJson(Map<String, dynamic> json) => DialogueTurn(
-              speaker: json['speaker'] ?? '',
-              text: json['text'] ?? '',
-              translation: json['translation'] ?? '',
-              audioPath: json['audioPath'],
-            );
-          }
-
-          class PodcastEpisode {
-            final String id;
-            final String title;
-            final String description;
-            final String cefrLevel;
-            final String audioPath;
-            final int durationSeconds;
-            final List<TranscriptSegment> transcript;
-
-            PodcastEpisode({
-              required this.id,
-              required this.title,
-              required this.description,
-              required this.cefrLevel,
-              required this.audioPath,
-              required this.durationSeconds,
-              this.transcript = const [],
-            });
-
-            Map<String, dynamic> toJson() => {
-              'id': id,
-              'title': title,
-              'description': description,
-              'cefrLevel': cefrLevel,
-              'audioPath': audioPath,
-              'durationSeconds': durationSeconds,
-              'transcript': transcript.map((t) => t.toJson()).toList(),
-            };
-
-            factory PodcastEpisode.fromJson(Map<String, dynamic> json) => PodcastEpisode(
-              id: json['id'] ?? '',
-              title: json['title'] ?? '',
-              description: json['description'] ?? '',
-              cefrLevel: json['cefrLevel'] ?? 'A1',
-              audioPath: json['audioPath'] ?? '',
-              durationSeconds: json['durationSeconds'] ?? 0,
-              transcript: (json['transcript'] as List?)
-                  ?.map((t) => TranscriptSegment.fromJson(t))
-                  .toList() ?? [],
-            );
-          }
-
-          class TranscriptSegment {
-            final String text;
-            final int startMs;
-            final int endMs;
-
-            TranscriptSegment({
-              required this.text,
-              required this.startMs,
-              required this.endMs,
-            });
-
-            Map<String, dynamic> toJson() => {
-              'text': text,
-              'startMs': startMs,
-              'endMs': endMs,
-            };
-
-            factory TranscriptSegment.fromJson(Map<String, dynamic> json) => TranscriptSegment(
-              text: json['text'] ?? '',
-              startMs: json['startMs'] ?? 0,
-              endMs: json['endMs'] ?? 0,
-            );
-          }
-
-          // =========================================
-          // 2. STATE MANAGEMENT (Riverpod Providers)
-          // =========================================
-
-          final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
-            throw UnimplementedError('Should be overridden in main');
-          });
+          // ----------------------------------------------------
+          // 2. PROVIDERS & STATE
+          // ----------------------------------------------------
+          final sharedPreferencesProvider = Provider<SharedPreferences>((ref) => throw UnimplementedError());
 
           final userProfileProvider = StateNotifierProvider<UserProfileNotifier, UserProfile>((ref) {
             return UserProfileNotifier(ref);
@@ -439,179 +155,51 @@ jobs:
 
           class UserProfileNotifier extends StateNotifier<UserProfile> {
             final Ref ref;
-
             UserProfileNotifier(this.ref) : super(UserProfile(fullName: '', age: 0, cefrLevel: 'A1', dailyGoalMinutes: 15)) {
-              _loadProfile();
+              _load();
             }
 
-            Future<void> _loadProfile() async {
+            void _load() {
               final prefs = ref.read(sharedPreferencesProvider);
-              final jsonString = prefs.getString('user_profile');
-              if (jsonString != null) {
+              final str = prefs.getString('user_profile');
+              if (str != null) {
                 try {
-                  final json = jsonDecode(jsonString);
-                  state = UserProfile.fromJson(json);
-                  _checkStreak();
-                  _checkHeartRegeneration();
-                  return;
-                } catch (e) {
-                  print('Error loading profile: $e');
-                }
+                  state = UserProfile.fromJson(jsonDecode(str));
+                } catch (_) {}
               }
-              state = UserProfile(
-                fullName: '',
-                age: 0,
-                cefrLevel: 'A1',
-                dailyGoalMinutes: 15,
-                totalXp: 0,
-                streakDays: 0,
-                hearts: 5,
-                maxHearts: 5,
-                lastActivityDate: null,
-              );
             }
 
-            void _saveProfile() {
+            void _save() {
               final prefs = ref.read(sharedPreferencesProvider);
               prefs.setString('user_profile', jsonEncode(state.toJson()));
             }
 
-            void _checkStreak() {
-              final now = DateTime.now();
-              final today = DateTime(now.year, now.month, now.day);
-              final lastActive = state.lastActivityDate;
-              if (lastActive == null) return;
-              final lastDay = DateTime(lastActive.year, lastActive.month, lastActive.day);
-              final difference = today.difference(lastDay).inDays;
-              if (difference > 1) {
-                state = state.copyWith(streakDays: 0);
-                _saveProfile();
+            void updateProfile(UserProfile p) {
+              state = p;
+              _save();
+            }
+
+            void addXp(int xp) {
+              state = state.copyWith(totalXp: state.totalXp + xp);
+              _save();
+            }
+
+            void loseHeart() {
+              if (state.hearts > 0) {
+                state = state.copyWith(hearts: state.hearts - 1);
+                _save();
               }
             }
 
-            void _checkHeartRegeneration() {
-              final now = DateTime.now();
-              final lastActive = state.lastActivityDate;
-              if (lastActive == null) return;
-              final hoursSinceLast = now.difference(lastActive).inHours;
-              if (hoursSinceLast >= 6 && state.hearts < state.maxHearts) {
-                final newHearts = min(state.hearts + (hoursSinceLast ~/ 6), state.maxHearts);
-                state = state.copyWith(hearts: newHearts);
-                _saveProfile();
-              }
-            }
-
-            void updateProfile(UserProfile newProfile) {
-              state = newProfile;
-              _saveProfile();
-            }
-
-            void addXp(int amount) {
-              state = state.copyWith(totalXp: state.totalXp + amount);
-              _checkAchievements();
-              _saveProfile();
-            }
-
-            void updateStreak() {
-              final now = DateTime.now();
-              final today = DateTime(now.year, now.month, now.day);
-              final lastActive = state.lastActivityDate;
-              int newStreak = state.streakDays;
-              if (lastActive == null) {
-                newStreak = 1;
+            void toggleFavorite(String id) {
+              final favs = List<String>.from(state.favoriteWords);
+              if (favs.contains(id)) {
+                favs.remove(id);
               } else {
-                final lastDay = DateTime(lastActive.year, lastActive.month, lastActive.day);
-                if (today.difference(lastDay).inDays == 1) {
-                  newStreak = state.streakDays + 1;
-                } else if (today.difference(lastDay).inDays == 0) {
-                  newStreak = state.streakDays;
-                } else {
-                  newStreak = 1;
-                }
+                favs.add(id);
               }
-              state = state.copyWith(streakDays: newStreak, lastActivityDate: now);
-              _checkAchievements();
-              _saveProfile();
-            }
-
-            bool loseHeart() {
-              if (state.hearts <= 0) return false;
-              state = state.copyWith(hearts: state.hearts - 1);
-              _saveProfile();
-              return true;
-            }
-
-            void updateSkill(String skill, int score) {
-              final newScores = Map<String, int>.from(state.skillScores);
-              newScores[skill] = (newScores[skill] ?? 0) + score;
-              state = state.copyWith(skillScores: newScores);
-              _checkAchievements();
-              _saveProfile();
-            }
-
-            void toggleFavorite(String wordId) {
-              final favorites = List<String>.from(state.favoriteWords);
-              if (favorites.contains(wordId)) {
-                favorites.remove(wordId);
-              } else {
-                favorites.add(wordId);
-              }
-              state = state.copyWith(favoriteWords: favorites);
-              _saveProfile();
-            }
-
-            void updateLessonProgress(String lessonId, int score) {
-              final progress = Map<String, int>.from(state.lessonProgress);
-              final currentScore = progress[lessonId] ?? 0;
-              if (score > currentScore) {
-                progress[lessonId] = score;
-              }
-              state = state.copyWith(lessonProgress: progress);
-              _checkAchievements();
-              _saveProfile();
-            }
-
-            void updateSRSData(String wordId, String grade) {
-              final srs = Map<String, String>.from(state.srsData);
-              srs[wordId] = grade;
-              state = state.copyWith(srsData: srs);
-              _saveProfile();
-            }
-
-            void _checkAchievements() {
-              final newAchievements = List<String>.from(state.unlockedAchievements);
-              final achievements = _getAllAchievements();
-              for (final achievement in achievements) {
-                if (newAchievements.contains(achievement.id)) continue;
-                if (_shouldUnlockAchievement(achievement)) {
-                  newAchievements.add(achievement.id);
-                }
-              }
-              if (newAchievements.length != state.unlockedAchievements.length) {
-                state = state.copyWith(unlockedAchievements: newAchievements);
-                _saveProfile();
-              }
-            }
-
-            List<Achievement> _getAllAchievements() => [
-              Achievement(id: 'first_lesson', title: 'First Steps', description: 'Complete your first lesson', icon: '🎓', condition: 'lessons >= 1'),
-              Achievement(id: 'xp_100', title: 'Knowledge Seeker', description: 'Earn 100 XP', icon: '⭐', condition: 'xp >= 100'),
-              Achievement(id: 'streak_7', title: 'Weekly Warrior', description: '7-day streak', icon: '🔥', condition: 'streak >= 7'),
-              Achievement(id: 'xp_500', title: 'Language Enthusiast', description: 'Earn 500 XP', icon: '🌟', condition: 'xp >= 500'),
-              Achievement(id: 'streak_30', title: 'Monthly Master', description: '30-day streak', icon: '👑', condition: 'streak >= 30'),
-              Achievement(id: 'xp_1000', title: 'Polyglot Master', description: 'Earn 1000 XP', icon: '🏆', condition: 'xp >= 1000'),
-            ];
-
-            bool _shouldUnlockAchievement(Achievement achievement) {
-              final parts = achievement.condition.split(' ');
-              final type = parts[0];
-              final value = int.parse(parts[2]);
-              switch (type) {
-                case 'xp': return state.totalXp >= value;
-                case 'streak': return state.streakDays >= value;
-                case 'lessons': return state.lessonProgress.length >= value;
-                default: return false;
-              }
+              state = state.copyWith(favoriteWords: favs);
+              _save();
             }
 
             void resetProgress() {
@@ -621,29 +209,12 @@ jobs:
                 cefrLevel: state.cefrLevel,
                 dailyGoalMinutes: state.dailyGoalMinutes,
                 totalXp: 0,
-                streakDays: 0,
+                streakDays: 1,
                 hearts: 5,
-                maxHearts: 5,
-                lastActivityDate: null,
+                favoriteWords: [],
               );
-              _saveProfile();
+              _save();
             }
-          }
-
-          class Achievement {
-            final String id;
-            final String title;
-            final String description;
-            final String icon;
-            final String condition;
-
-            Achievement({
-              required this.id,
-              required this.title,
-              required this.description,
-              required this.icon,
-              required this.condition,
-            });
           }
 
           final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
@@ -652,14 +223,9 @@ jobs:
 
           class ThemeModeNotifier extends StateNotifier<ThemeMode> {
             final Ref ref;
-
             ThemeModeNotifier(this.ref) : super(ThemeMode.dark) {
-              _loadTheme();
-            }
-
-            void _loadTheme() {
               final prefs = ref.read(sharedPreferencesProvider);
-              final isDark = prefs.getBool('dark_mode') ?? true;
+              final isDark = prefs.getBool('is_dark') ?? true;
               state = isDark ? ThemeMode.dark : ThemeMode.light;
             }
 
@@ -667,40 +233,11 @@ jobs:
               final prefs = ref.read(sharedPreferencesProvider);
               final isDark = state == ThemeMode.dark;
               state = isDark ? ThemeMode.light : ThemeMode.dark;
-              prefs.setBool('dark_mode', state == ThemeMode.dark);
+              prefs.setBool('is_dark', state == ThemeMode.dark);
             }
           }
 
-          final dictionaryProvider = StateNotifierProvider<DictionaryNotifier, List<VocabularyWord>>((ref) {
-            return DictionaryNotifier();
-          });
-
-          class DictionaryNotifier extends StateNotifier<List<VocabularyWord>> {
-            DictionaryNotifier() : super([]) {
-              _loadDictionary();
-            }
-
-            void _loadDictionary() {
-              state = [
-                VocabularyWord(id: 'w1', word: 'hello', translation: 'مرحباً', phonetic: '/həˈləʊ/', partOfSpeech: 'interjection', exampleSentence: 'Hello, how are you?', exampleTranslation: 'مرحباً، كيف حالك؟'),
-                VocabularyWord(id: 'w2', word: 'goodbye', translation: 'وداعاً', phonetic: '/ɡʊdˈbaɪ/', partOfSpeech: 'interjection', exampleSentence: 'Goodbye, see you tomorrow', exampleTranslation: 'وداعاً، أراك غداً'),
-                VocabularyWord(id: 'w3', word: 'thank you', translation: 'شكراً لك', phonetic: '/θæŋk juː/', partOfSpeech: 'interjection', exampleSentence: 'Thank you for your help', exampleTranslation: 'شكراً لك على مساعدتك'),
-                VocabularyWord(id: 'w4', word: 'please', translation: 'من فضلك', phonetic: '/pliːz/', partOfSpeech: 'interjection', exampleSentence: 'Please help me', exampleTranslation: 'من فضلك ساعدني'),
-                VocabularyWord(id: 'w5', word: 'perseverance', translation: 'المثابرة والإصرار', phonetic: '/ˌpɜː.sɪˈvɪə.rəns/', partOfSpeech: 'noun', exampleSentence: 'Success requires perseverance', exampleTranslation: 'النجاح يتطلب المثابرة'),
-                VocabularyWord(id: 'w6', word: 'opportunity', translation: 'فرصة ثمينة', phonetic: '/ˌɒp.əˈtjuː.nə.ti/', partOfSpeech: 'noun', exampleSentence: 'Seize every opportunity', exampleTranslation: 'اغتنم كل فرصة'),
-                VocabularyWord(id: 'w7', word: 'fluent', translation: 'فصيح / طليق اللسان', phonetic: '/ˈfluː.ənt/', partOfSpeech: 'adjective', exampleSentence: 'She speaks fluent English', exampleTranslation: 'هي تتحدث الإنجليزية بطلاقة'),
-                VocabularyWord(id: 'w8', word: 'knowledge', translation: 'معرفة / علم', phonetic: '/ˈnɒl.ɪdʒ/', partOfSpeech: 'noun', exampleSentence: 'Knowledge is real power', exampleTranslation: 'المعرفة هي القوة الحقيقية'),
-              ];
-            }
-
-            List<VocabularyWord> search(String query) {
-              if (query.isEmpty) return [];
-              final q = query.toLowerCase();
-              return state.where((w) => w.word.toLowerCase().contains(q) || w.translation.contains(q)).toList();
-            }
-          }
-
-          final ttsServiceProvider = Provider<FlutterTts>((ref) {
+          final ttsProvider = Provider<FlutterTts>((ref) {
             final tts = FlutterTts();
             tts.setLanguage('en-US');
             tts.setSpeechRate(0.48);
@@ -708,18 +245,26 @@ jobs:
             return tts;
           });
 
-          // =========================================
-          // 3. MAIN APP
-          // =========================================
+          final dictionaryData = [
+            VocabularyWord(id: 'w1', word: 'Hello', translation: 'مرحباً', phonetic: '/həˈloʊ/', exampleSentence: 'Hello, how are you today?', exampleTranslation: 'مرحباً، كيف حالك اليوم؟'),
+            VocabularyWord(id: 'w2', word: 'Perseverance', translation: 'المثابرة والإصرار', phonetic: '/ˌpɜːrsəˈvɪrəns/', exampleSentence: 'Success requires constant perseverance.', exampleTranslation: 'النجاح يتطلب المثابرة المستمرة.'),
+            VocabularyWord(id: 'w3', word: 'Opportunity', translation: 'فرصة ثمينة', phonetic: '/ˌɑːpərˈtuːnəti/', exampleSentence: 'Always seize every learning opportunity.', exampleTranslation: 'اغتنم دائماً كل فرصة للتعلم.'),
+            VocabularyWord(id: 'w4', word: 'Fluent', translation: 'فصيح / طليق اللسان', phonetic: '/ˈfluːənt/', exampleSentence: 'You will become fluent in English.', exampleTranslation: 'ستصبح طليق اللسان في الإنجليزية.'),
+            VocabularyWord(id: 'w5', word: 'Knowledge', translation: 'المعرفة / العلم', phonetic: '/ˈnɑːlɪdʒ/', exampleSentence: 'Knowledge is the greatest power.', exampleTranslation: 'المعرفة هي أعظم قوة.'),
+            VocabularyWord(id: 'w6', word: 'Confidence', translation: 'الثقة بالنفس', phonetic: '/ˈkɑːnfɪdəns/', exampleSentence: 'Speak English with total confidence.', exampleTranslation: 'تحدث الإنجليزية بثقة تامة.'),
+            VocabularyWord(id: 'w7', word: 'Achievement', translation: 'إنجاز عظيم', phonetic: '/əˈtʃiːvmənt/', exampleSentence: 'Completing this course is an achievement.', exampleTranslation: 'إكمال هذه الدورة هو إنجاز.'),
+            VocabularyWord(id: 'w8', word: 'Determination', translation: 'العزيمة والإرادة', phonetic: '/dɪˌtɜːrmɪˈneɪʃn/', exampleSentence: 'Determination leads to success.', exampleTranslation: 'العزيمة تقود إلى النجاح.'),
+          ];
 
+          // ----------------------------------------------------
+          // 3. MAIN APP ENTRY
+          // ----------------------------------------------------
           void main() async {
             WidgetsFlutterBinding.ensureInitialized();
             final prefs = await SharedPreferences.getInstance();
             runApp(
               ProviderScope(
-                overrides: [
-                  sharedPreferencesProvider.overrideWithValue(prefs),
-                ],
+                overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
                 child: const PolyglotMasterApp(),
               ),
             );
@@ -741,7 +286,6 @@ jobs:
                   useMaterial3: true,
                   brightness: Brightness.light,
                   colorSchemeSeed: const Color(0xFF2563EB),
-                  fontFamily: GoogleFonts.inter().fontFamily,
                 ),
                 darkTheme: ThemeData(
                   useMaterial3: true,
@@ -750,9 +294,7 @@ jobs:
                   colorScheme: const ColorScheme.dark(
                     primary: Color(0xFF3B82F6),
                     surface: Color(0xFF121212),
-                    background: Color(0xFF000000),
                   ),
-                  fontFamily: GoogleFonts.inter().fontFamily,
                 ),
                 themeMode: themeMode,
                 home: isLoggedIn ? const HomeScreen() : const AuthScreen(),
@@ -760,10 +302,9 @@ jobs:
             }
           }
 
-          // =========================================
+          // ----------------------------------------------------
           // 4. AUTH SCREEN
-          // =========================================
-
+          // ----------------------------------------------------
           class AuthScreen extends ConsumerStatefulWidget {
             const AuthScreen({super.key});
 
@@ -775,8 +316,8 @@ jobs:
             final _formKey = GlobalKey<FormState>();
             final _nameController = TextEditingController();
             final _ageController = TextEditingController();
-            String _selectedLevel = 'A1';
-            int _selectedGoal = 15;
+            String _level = 'A1';
+            int _goal = 15;
 
             @override
             Widget build(BuildContext context) {
@@ -791,40 +332,40 @@ jobs:
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(Icons.school, size: 80, color: Color(0xFF3B82F6)),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             const Text('PolyglotMaster', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF3B82F6))),
-                            const Text('Learn English Offline • بدون إنترنت', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                            const SizedBox(height: 32),
+                            const Text('تعلم الإنجليزية بدون إنترنت • 100% Offline', style: TextStyle(color: Colors.grey, fontSize: 15)),
+                            const SizedBox(height: 30),
                             TextFormField(
                               controller: _nameController,
                               decoration: const InputDecoration(labelText: 'الاسم الكامل / Full Name', prefixIcon: Icon(Icons.person), border: OutlineInputBorder()),
                               validator: (v) => v!.isEmpty ? 'يرجى إدخال اسمك' : null,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 14),
                             TextFormField(
                               controller: _ageController,
                               keyboardType: TextInputType.number,
                               decoration: const InputDecoration(labelText: 'العمر / Age', prefixIcon: Icon(Icons.cake), border: OutlineInputBorder()),
                               validator: (v) => v!.isEmpty ? 'يرجى إدخال عمرك' : null,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 14),
                             DropdownButtonFormField<String>(
-                              value: _selectedLevel,
-                              decoration: const InputDecoration(labelText: 'المستوى المبدئي / English Level', prefixIcon: Icon(Icons.stacked_line_chart), border: OutlineInputBorder()),
+                              value: _level,
+                              decoration: const InputDecoration(labelText: 'المستوى / English Level', prefixIcon: Icon(Icons.stacked_line_chart), border: OutlineInputBorder()),
                               items: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((l) => DropdownMenuItem(value: l, child: Text('Level $l'))).toList(),
-                              onChanged: (v) => setState(() => _selectedLevel = v!),
+                              onChanged: (v) => setState(() => _level = v!),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 14),
                             DropdownButtonFormField<int>(
-                              value: _selectedGoal,
+                              value: _goal,
                               decoration: const InputDecoration(labelText: 'الهدف اليومي / Daily Goal', prefixIcon: Icon(Icons.timer), border: OutlineInputBorder()),
-                              items: [5, 15, 30].map((m) => DropdownMenuItem(value: m, child: Text('$m دقيقة / Minutes'))).toList(),
-                              onChanged: (v) => setState(() => _selectedGoal = v!),
+                              items: [5, 15, 30].map((g) => DropdownMenuItem(value: g, child: Text('$g دقيقة / Minutes'))).toList(),
+                              onChanged: (v) => setState(() => _goal = v!),
                             ),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 24),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 54), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                              onPressed: _saveAndStart,
+                              onPressed: _start,
                               child: const Text('ابدأ التعلم الآن 🚀', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                             )
                           ],
@@ -836,27 +377,25 @@ jobs:
               );
             }
 
-            void _saveAndStart() {
+            void _start() {
               if (!_formKey.currentState!.validate()) return;
-              final profile = UserProfile(
-                fullName: _nameController.text.trim(),
-                age: int.tryParse(_ageController.text.trim()) ?? 20,
-                cefrLevel: _selectedLevel,
-                dailyGoalMinutes: _selectedGoal,
-                totalXp: 0,
-                streakDays: 1,
-                hearts: 5,
-                maxHearts: 5,
-                lastActivityDate: DateTime.now(),
+              ref.read(userProfileProvider.notifier).updateProfile(
+                UserProfile(
+                  fullName: _nameController.text.trim(),
+                  age: int.tryParse(_ageController.text.trim()) ?? 20,
+                  cefrLevel: _level,
+                  dailyGoalMinutes: _goal,
+                  totalXp: 0,
+                  streakDays: 1,
+                  hearts: 5,
+                ),
               );
-              ref.read(userProfileProvider.notifier).updateProfile(profile);
             }
           }
 
-          // =========================================
-          // 5. HOME SCREEN & TABS
-          // =========================================
-
+          // ----------------------------------------------------
+          // 5. MAIN SHELL & TABS
+          // ----------------------------------------------------
           class HomeScreen extends ConsumerStatefulWidget {
             const HomeScreen({super.key});
 
@@ -866,7 +405,7 @@ jobs:
 
           class _HomeScreenState extends ConsumerState<HomeScreen> {
             int _currentIndex = 0;
-            final List<Widget> _tabs = const [
+            final _tabs = const [
               LessonsTab(),
               FlashcardsTab(),
               DialoguesTab(),
@@ -890,7 +429,7 @@ jobs:
                         Text(' ${profile.hearts} ', style: const TextStyle(fontWeight: FontWeight.bold)),
                         const Icon(Icons.stars, color: Colors.amber, size: 20),
                         Text(' ${profile.totalXp} ', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                       ],
                     )
                   ],
@@ -912,10 +451,9 @@ jobs:
             }
           }
 
-          // =========================================
-          // 6. DRAWER (DICTIONARY & GRAMMAR)
-          // =========================================
-
+          // ----------------------------------------------------
+          // 6. DRAWER (DICTIONARY, GRAMMAR, FAVORITES)
+          // ----------------------------------------------------
           class AppDrawer extends ConsumerWidget {
             const AppDrawer({super.key});
 
@@ -927,27 +465,27 @@ jobs:
                   children: [
                     UserAccountsDrawerHeader(
                       decoration: const BoxDecoration(color: Color(0xFF2563EB)),
-                      accountName: Text(profile.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                      accountEmail: Text('Level ${profile.cefrLevel} • ${profile.totalXp} XP • ${profile.streakDays} Days Streak'),
+                      accountName: Text(profile.fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      accountEmail: Text('Level ${profile.cefrLevel} • ${profile.totalXp} XP • ${profile.streakDays} Days 🔥'),
                       currentAccountPicture: CircleAvatar(
                         backgroundColor: Colors.white,
-                        child: Text(profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : 'P', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                        child: Text(profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : 'P', style: const TextStyle(fontSize: 28, color: Color(0xFF2563EB), fontWeight: FontWeight.bold)),
                       ),
                     ),
                     ListTile(
                       leading: const Icon(Icons.translate, color: Color(0xFF3B82F6)),
                       title: const Text('القاموس والمترجم الفوري (Offline)'),
-                      onTap: () => _openDictionary(context),
+                      onTap: () => _openSheet(context, const DictionarySheet()),
                     ),
                     ListTile(
                       leading: const Icon(Icons.menu_book, color: Colors.purple),
                       title: const Text('ملخص القواعد النحوية (Grammar)'),
-                      onTap: () => _openGrammar(context),
+                      onTap: () => _openSheet(context, const GrammarSheet()),
                     ),
                     ListTile(
                       leading: const Icon(Icons.favorite, color: Colors.red),
                       title: const Text('الكلمات المفضلة (Favorites)'),
-                      onTap: () => _openFavorites(context, ref),
+                      onTap: () => _openSheet(context, const FavoritesSheet()),
                     ),
                     const Divider(),
                     ListTile(
@@ -957,7 +495,7 @@ jobs:
                     ),
                     ListTile(
                       leading: const Icon(Icons.restart_alt, color: Colors.red),
-                      title: const Text('إعادة تعيين التقدم (Reset Progress)'),
+                      title: const Text('إعادة تعيين التقدم (Reset)'),
                       onTap: () => ref.read(userProfileProvider.notifier).resetProgress(),
                     ),
                   ],
@@ -965,37 +503,10 @@ jobs:
               );
             }
 
-            void _openDictionary(BuildContext context) {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => const DictionarySheet(),
-              );
-            }
-
-            void _openGrammar(BuildContext context) {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => const GrammarReferenceSheet(),
-              );
-            }
-
-            void _openFavorites(BuildContext context, WidgetRef ref) {
-              final dict = ref.watch(dictionaryProvider);
-              final favIds = ref.watch(userProfileProvider).favoriteWords;
-              final favWords = dict.where((w) => favIds.contains(w.id)).toList();
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => FavoritesSheet(favorites: favWords),
-              );
+            void _openSheet(BuildContext context, Widget sheet) {
+              showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => sheet);
             }
           }
-
-          // =========================================
-          // 7. DICTIONARY & GRAMMAR & FAVORITES SHEETS
-          // =========================================
 
           class DictionarySheet extends ConsumerStatefulWidget {
             const DictionarySheet({super.key});
@@ -1005,13 +516,12 @@ jobs:
           }
 
           class _DictionarySheetState extends ConsumerState<DictionarySheet> {
-            final _controller = TextEditingController();
-            List<VocabularyWord> _results = [];
+            final _c = TextEditingController();
+            List<VocabularyWord> _res = dictionaryData;
 
             @override
             Widget build(BuildContext context) {
-              final dict = ref.watch(dictionaryProvider);
-              final tts = ref.watch(ttsServiceProvider);
+              final tts = ref.watch(ttsProvider);
               final favs = ref.watch(userProfileProvider).favoriteWords;
 
               return Padding(
@@ -1023,22 +533,26 @@ jobs:
                       const Text('📖 القاموس الفوري الأوفلاين', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       TextField(
-                        controller: _controller,
+                        controller: _c,
                         decoration: const InputDecoration(labelText: 'ابحث بالإنجليزية أو العربية...', prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
-                        onChanged: (v) => setState(() => _results = dict.where((w) => w.word.toLowerCase().contains(v.toLowerCase()) || w.translation.contains(v)).toList()),
+                        onChanged: (v) {
+                          setState(() {
+                            _res = dictionaryData.where((w) => w.word.toLowerCase().contains(v.toLowerCase()) || w.translation.contains(v)).toList();
+                          });
+                        },
                       ),
                       const SizedBox(height: 12),
                       Expanded(
                         child: ListView.builder(
-                          itemCount: _controller.text.isEmpty ? dict.length : _results.length,
+                          itemCount: _res.length,
                           itemBuilder: (ctx, i) {
-                            final w = _controller.text.isEmpty ? dict[i] : _results[i];
+                            final w = _res[i];
                             final isFav = favs.contains(w.id);
                             return Card(
                               child: ListTile(
                                 leading: IconButton(icon: const Icon(Icons.volume_up, color: Color(0xFF3B82F6)), onPressed: () => tts.speak(w.word)),
                                 title: Text('${w.word} (${w.phonetic})', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text('${w.translation}\nمثال: ${w.exampleSentence}', style: const TextStyle(height: 1.3)),
+                                subtitle: Text('${w.translation}\n${w.exampleSentence}'),
                                 trailing: IconButton(
                                   icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.red : null),
                                   onPressed: () => ref.read(userProfileProvider.notifier).toggleFavorite(w.id),
@@ -1055,8 +569,8 @@ jobs:
             }
           }
 
-          class GrammarReferenceSheet extends StatelessWidget {
-            const GrammarReferenceSheet({super.key});
+          class GrammarSheet extends StatelessWidget {
+            const GrammarSheet({super.key});
 
             @override
             Widget build(BuildContext context) {
@@ -1066,7 +580,7 @@ jobs:
                   height: MediaQuery.of(context).size.height * 0.75,
                   child: ListView(
                     children: const [
-                      Text('📚 ملخص القواعد الأساسية', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                      Text('📚 ملخص أهم القواعد النحوية', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                       SizedBox(height: 16),
                       Card(
                         child: Padding(
@@ -1076,7 +590,7 @@ jobs:
                             children: [
                               Text('1. Present Simple (المضارع البسيط)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF3B82F6))),
                               SizedBox(height: 4),
-                              Text('• للاستخدام مع الحقائق والعادات.\n• التكوين: I/You/We/They + Verb | He/She/It + Verb(s)\n• مثال: He plays football every day.'),
+                              Text('• للعادات والحقائق الثابتة.\n• القاعدة: I/You/We/They + Verb | He/She/It + Verb(s)\n• مثال: I practice English every day.'),
                             ],
                           ),
                         ),
@@ -1089,7 +603,7 @@ jobs:
                             children: [
                               Text('2. Past Simple (الماضي البسيط)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.purple)),
                               SizedBox(height: 4),
-                              Text('• للأحداث التي بدأت وانتهت في الماضي.\n• التكوين: Subject + Verb(ed/2nd form)\n• مثال: She visited London last year.'),
+                              Text('• لأحداث انتهت في وقت محدد بالماضي.\n• القاعدة: Subject + Verb(ed/2nd form)\n• مثال: We learned 20 new words yesterday.'),
                             ],
                           ),
                         ),
@@ -1100,9 +614,9 @@ jobs:
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('3. Future Simple (المستقبل البسيط)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
+                              Text('3. Modals: Can, Should, Must', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
                               SizedBox(height: 4),
-                              Text('• للقرارات السريعة والتنبؤات.\n• التكوين: Subject + will + Verb(inf)\n• مثال: I will learn English fast.'),
+                              Text('• Can: للقدرة (I can speak).\n• Should: للنصيحة (You should practice).\n• Must: للضرورة (You must believe in yourself).'),
                             ],
                           ),
                         ),
@@ -1115,12 +629,14 @@ jobs:
           }
 
           class FavoritesSheet extends ConsumerWidget {
-            final List<VocabularyWord> favorites;
-            const FavoritesSheet({super.key, required this.favorites});
+            const FavoritesSheet({super.key});
 
             @override
             Widget build(BuildContext context, WidgetRef ref) {
-              final tts = ref.watch(ttsServiceProvider);
+              final tts = ref.watch(ttsProvider);
+              final favIds = ref.watch(userProfileProvider).favoriteWords;
+              final favWords = dictionaryData.where((w) => favIds.contains(w.id)).toList();
+
               return Padding(
                 padding: const EdgeInsets.all(20),
                 child: SizedBox(
@@ -1130,12 +646,12 @@ jobs:
                       const Text('❤️ الكلمات المفضلة المحفوظة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       Expanded(
-                        child: favorites.isEmpty
-                            ? const Center(child: Text('لا توجد كلمات مفضلة حتى الآن! اضغط على أيقونة القلب لحفظها.'))
+                        child: favWords.isEmpty
+                            ? const Center(child: Text('لا توجد كلمات مفضلة حتى الآن! اضغط على القلب لحفظها.'))
                             : ListView.builder(
-                                itemCount: favorites.length,
+                                itemCount: favWords.length,
                                 itemBuilder: (ctx, i) {
-                                  final w = favorites[i];
+                                  final w = favWords[i];
                                   return Card(
                                     child: ListTile(
                                       leading: IconButton(icon: const Icon(Icons.volume_up, color: Color(0xFF3B82F6)), onPressed: () => tts.speak(w.word)),
@@ -1154,43 +670,31 @@ jobs:
             }
           }
 
-          // =========================================
-          // 8. TAB 1: LESSONS & QUIZZES
-          // =========================================
-
+          // ----------------------------------------------------
+          // 7. TAB 1: LESSONS
+          // ----------------------------------------------------
           class LessonsTab extends ConsumerWidget {
             const LessonsTab({super.key});
 
             @override
             Widget build(BuildContext context, WidgetRef ref) {
               final profile = ref.watch(userProfileProvider);
-              final lessons = [
-                Lesson(id: 'l1', title: 'Level A1: Basics & Greetings', description: 'التحيات والتعريف بالنفس والأساسيات اليومية', cefrLevel: 'A1', orderIndex: 1, exercises: [
-                  Exercise(id: 'e1', lessonId: 'l1', orderIndex: 1, type: 'singleChoice', question: 'How do you say "مرحباً، كيف حالك؟" in English?', options: ['Good morning, bye', 'Hello, how are you?', 'Thank you very much', 'See you later'], correctAnswer: 'Hello, how are you?', explanation: 'Hello تعني مرحباً، و How are you تعني كيف حالك.', xpReward: 15),
-                  Exercise(id: 'e2', lessonId: 'l1', orderIndex: 2, type: 'singleChoice', question: 'What is the correct reply to "Thank you"?', options: ['You are welcome', 'Good night', 'I am sorry', 'No way'], correctAnswer: 'You are welcome', explanation: 'You are welcome هي الرد القياسي على الشكر (عفواً / أهلاً بك).', xpReward: 15),
-                ]),
-                Lesson(id: 'l2', title: 'Level A2: Daily Routine & Food', description: 'الروتين اليومي، المأكولات، والتسوق', cefrLevel: 'A2', orderIndex: 2, requiredXp: 30, exercises: [
-                  Exercise(id: 'e3', lessonId: 'l2', orderIndex: 1, type: 'singleChoice', question: 'Choose the correct breakfast item:', options: ['Laptop', 'Pancakes and Coffee', 'Train station', 'Smartphone'], correctAnswer: 'Pancakes and Coffee', explanation: 'الفطائر والقهوة هي من وجبات الإفطار.', xpReward: 20),
-                ]),
-                Lesson(id: 'l3', title: 'Level B1: Travel & Airport Navigation', description: 'السفر، حجز الفنادق، والتعامل في المطار', cefrLevel: 'B1', orderIndex: 3, requiredXp: 70, exercises: [
-                  Exercise(id: 'e4', lessonId: 'l3', orderIndex: 1, type: 'singleChoice', question: 'Where do you show your passport at the airport?', options: ['Food Court', 'Passport Control / Customs', 'Parking lot', 'Duty free shop'], correctAnswer: 'Passport Control / Customs', explanation: 'جواز السفر يطلب في قسم مراقبة الجوازات والجمارك.', xpReward: 25),
-                ]),
-                Lesson(id: 'l4', title: 'Level B2: Job Interviews & Tech', description: 'المقابلات الوظيفية، كتابة السيرة الذاتية، ومصطلحات التقنية', cefrLevel: 'B2', orderIndex: 4, requiredXp: 120, exercises: [
-                  Exercise(id: 'e5', lessonId: 'l4', orderIndex: 1, type: 'singleChoice', question: 'What does "Team Player" mean in a job interview?', options: ['Works well with colleagues', 'Plays video games only', 'Likes to work alone', 'Arrives late'], correctAnswer: 'Works well with colleagues', explanation: 'Team Player يعني شخص يتعاون بإيجابية مع زملائه في العمل.', xpReward: 30),
-                ]),
-                Lesson(id: 'l5', title: 'Level C1: Debates & Idiomatic Mastery', description: 'المناظرات الفكرية والمصطلحات الإنجليزية العميقة', cefrLevel: 'C1', orderIndex: 5, requiredXp: 200, exercises: [
-                  Exercise(id: 'e6', lessonId: 'l5', orderIndex: 1, type: 'singleChoice', question: 'What does the idiom "Bite the bullet" mean?', options: ['Eat food quickly', 'Face a difficult situation with courage', 'Buy ammunition', 'Avoid talking'], correctAnswer: 'Face a difficult situation with courage', explanation: 'Bite the bullet تعني مواجهة موقف صعب بشجاعة وثبات.', xpReward: 35),
-                ]),
+              final levels = [
+                {'lvl': 'Level A1: Basics & Greetings', 'ar': 'التحيات والتعريف بالنفس والأساسيات', 'req': 0, 'q': 'How do you say "مرحباً، كيف حالك؟"?', 'opts': ['Hello, how are you?', 'Good night, bye', 'Thank you', 'Excuse me'], 'ans': 'Hello, how are you?'},
+                {'lvl': 'Level A2: Daily Routine & Food', 'ar': 'الروتين اليومي والمطاعم والتسوق', 'req': 30, 'q': 'What do you eat for breakfast?', 'opts': ['Pancakes and Eggs', 'Laptop and mouse', 'Car and train', 'Table and chair'], 'ans': 'Pancakes and Eggs'},
+                {'lvl': 'Level B1: Travel & Navigation', 'ar': 'السفر والمطارات وحجز الفنادق', 'req': 70, 'q': 'Where do you show your passport?', 'opts': ['Passport Control', 'Restaurant kitchen', 'Cinema room', 'Bus stop'], 'ans': 'Passport Control'},
+                {'lvl': 'Level B2: Business & Interviews', 'ar': 'المقابلات الوظيفية ومصطلحات العمل', 'req': 120, 'q': 'What does "Team Player" mean?', 'opts': ['Collaborates with colleagues', 'Plays football alone', 'Never speaks', 'Sleeps at work'], 'ans': 'Collaborates with colleagues'},
+                {'lvl': 'Level C1: Advanced Fluency', 'ar': 'المناظرات الفكرية والمصطلحات العميقة', 'req': 180, 'q': 'What does "Bite the bullet" mean?', 'opts': ['Face a difficult situation bravely', 'Eat bullets', 'Go to sleep', 'Cook dinner'], 'ans': 'Face a difficult situation bravely'},
               ];
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: lessons.length,
+                itemCount: levels.length,
                 itemBuilder: (ctx, i) {
-                  final l = lessons[i];
-                  final isLocked = profile.totalXp < l.requiredXp;
+                  final l = levels[i];
+                  final isLocked = profile.totalXp < (l['req'] as int);
                   return Card(
-                    margin: const EdgeInsets.only(bottom: 14),
+                    margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1198,62 +702,50 @@ jobs:
                         backgroundColor: isLocked ? Colors.grey.withOpacity(0.2) : const Color(0xFF2563EB).withOpacity(0.15),
                         child: Icon(isLocked ? Icons.lock : Icons.school, color: isLocked ? Colors.grey : const Color(0xFF2563EB)),
                       ),
-                      title: Text(l.title, style: TextStyle(fontWeight: FontWeight.bold, color: isLocked ? Colors.grey : null)),
-                      subtitle: Text('${l.description}\n(مطلوب: ${l.requiredXp} XP)', style: const TextStyle(fontSize: 13)),
+                      title: Text(l['lvl'] as String, style: TextStyle(fontWeight: FontWeight.bold, color: isLocked ? Colors.grey : null)),
+                      subtitle: Text('${l['ar']}\n(مطلوب: ${l['req']} XP)', style: const TextStyle(fontSize: 13)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: isLocked
-                          ? () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🔒 هذا المستوى مقفل! تحتاج إلى ${l.requiredXp} XP لفتحه.')))
-                          : () => Navigator.push(context, MaterialPageRoute(builder: (_) => LessonQuizScreen(lesson: l))),
+                      onTap: () {
+                        if (isLocked) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🔒 مقفل! تحتاج إلى ${l['req']} XP لفتحه.')));
+                        } else {
+                          _startLesson(context, ref, l['lvl'] as String, l['q'] as String, l['opts'] as List<String>, l['ans'] as String);
+                        }
+                      },
                     ),
                   );
                 },
               );
             }
-          }
 
-          class LessonQuizScreen extends ConsumerStatefulWidget {
-            final Lesson lesson;
-            const LessonQuizScreen({super.key, required this.lesson});
-
-            @override
-            ConsumerState<LessonQuizScreen> createState() => _LessonQuizScreenState();
-          }
-
-          class _LessonQuizScreenState extends ConsumerState<LessonQuizScreen> {
-            int _idx = 0;
-            int _score = 0;
-            int _xpEarned = 0;
-
-            @override
-            Widget build(BuildContext context) {
-              final ex = widget.lesson.exercises[_idx];
-              final tts = ref.watch(ttsServiceProvider);
-
-              return Scaffold(
-                appBar: AppBar(title: Text(widget.lesson.title)),
-                body: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+            void _startLesson(BuildContext context, WidgetRef ref, String title, String q, List<String> opts, String ans) {
+              final tts = ref.read(ttsProvider);
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      LinearProgressIndicator(value: (_idx + 1) / widget.lesson.exercises.length),
-                      const SizedBox(height: 24),
-                      Text('سؤال ${_idx + 1} من ${widget.lesson.exercises.length}:', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-                      const SizedBox(height: 8),
-                      Text(ex.question, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      Text(q, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      IconButton(icon: const Icon(Icons.volume_up, color: Color(0xFF3B82F6)), onPressed: () => tts.speak(q)),
                       const SizedBox(height: 12),
-                      IconButton(
-                        alignment: Alignment.centerLeft,
-                        icon: const Icon(Icons.volume_up, size: 36, color: Color(0xFF3B82F6)),
-                        onPressed: () => tts.speak(ex.question),
-                      ),
-                      const SizedBox(height: 20),
-                      ...ex.options.map((opt) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
+                      ...opts.map((opt) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
                             child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                              onPressed: () => _handleAnswer(opt, ex),
-                              child: Text(opt, style: const TextStyle(fontSize: 16)),
+                              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 44)),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                final isCorrect = opt == ans;
+                                if (isCorrect) {
+                                  ref.read(userProfileProvider.notifier).addXp(15);
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('✅ إجابة صحيحة! +15 XP ⭐')));
+                                } else {
+                                  ref.read(userProfileProvider.notifier).loseHeart();
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text('❌ إجابة خاطئة! فقدت قلباً ❤️')));
+                                }
+                              },
+                              child: Text(opt),
                             ),
                           )),
                     ],
@@ -1261,47 +753,11 @@ jobs:
                 ),
               );
             }
-
-            void _handleAnswer(String opt, Exercise ex) {
-              final isCorrect = opt == ex.correctAnswer;
-              if (isCorrect) {
-                _score++;
-                _xpEarned += ex.xpReward;
-                ref.read(userProfileProvider.notifier).addXp(ex.xpReward);
-                ref.read(userProfileProvider.notifier).updateStreak();
-              } else {
-                ref.read(userProfileProvider.notifier).loseHeart();
-              }
-
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => AlertDialog(
-                  title: Text(isCorrect ? '✅ إجابة صحيحة!' : '❌ إجابة غير صحيحة!'),
-                  content: Text('${ex.explanation}\n\n${isCorrect ? "+${ex.xpReward} XP ⭐" : "فقدت قلباً واحداً ❤️"}'),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        if (_idx < widget.lesson.exercises.length - 1) {
-                          setState(() => _idx++);
-                        } else {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: Colors.green, content: Text('🎉 أكملت الدرس بنجاح وحصلت على $_xpEarned XP!')));
-                        }
-                      },
-                      child: const Text('متابعة ➜'),
-                    )
-                  ],
-                ),
-              );
-            }
           }
 
-          // =========================================
-          // 9. TAB 2: SRS FLASHCARDS
-          // =========================================
-
+          // ----------------------------------------------------
+          // 8. TAB 2: FLASHCARDS (SRS)
+          // ----------------------------------------------------
           class FlashcardsTab extends ConsumerStatefulWidget {
             const FlashcardsTab({super.key});
 
@@ -1315,21 +771,20 @@ jobs:
 
             @override
             Widget build(BuildContext context) {
-              final dict = ref.watch(dictionaryProvider);
-              final tts = ref.watch(ttsServiceProvider);
-              final w = dict[_idx % dict.length];
+              final tts = ref.watch(ttsProvider);
+              final w = dictionaryData[_idx % dictionaryData.length];
 
               return Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    const Text('🧠 نظام التكرار المتباعد الذكي (SRS)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    const SizedBox(height: 20),
+                    const Text('🧠 نظام التكرار المتباعد (SRS Flashcards)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
                     Expanded(
                       child: GestureDetector(
                         onTap: () => setState(() => _flipped = !_flipped),
                         child: Card(
-                          elevation: 6,
+                          elevation: 4,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                           child: Center(
                             child: Padding(
@@ -1338,12 +793,12 @@ jobs:
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(icon: const Icon(Icons.volume_up, size: 44, color: Color(0xFF3B82F6)), onPressed: () => tts.speak(w.word)),
-                                  const SizedBox(height: 10),
-                                  Text(_flipped ? w.translation : w.word, style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: _flipped ? Colors.green : null)),
                                   const SizedBox(height: 8),
+                                  Text(_flipped ? w.translation : w.word, style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: _flipped ? Colors.green : null)),
+                                  const SizedBox(height: 6),
                                   Text(_flipped ? w.exampleTranslation : w.phonetic, style: const TextStyle(fontSize: 16, color: Colors.grey)),
-                                  const SizedBox(height: 20),
-                                  Text(_flipped ? 'مثال: ${w.exampleSentence}' : 'اضغط لقلب البطاقة ومعرفة المعنى', style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+                                  const SizedBox(height: 16),
+                                  Text(_flipped ? 'مثال: ${w.exampleSentence}' : 'اضغط لقلب البطاقة ومعرفة المعنى', style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
                                 ],
                               ),
                             ),
@@ -1351,7 +806,7 @@ jobs:
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -1360,7 +815,7 @@ jobs:
                         ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade500, foregroundColor: Colors.white), onPressed: () => _rate(15), child: const Text('سهلة (Easy)')),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                   ],
                 ),
               );
@@ -1375,93 +830,88 @@ jobs:
             }
           }
 
-          // =========================================
-          // 10. TAB 3: DIALOGUES & ROLEPLAY
-          // =========================================
-
+          // ----------------------------------------------------
+          // 9. TAB 3: DIALOGUES
+          // ----------------------------------------------------
           class DialoguesTab extends ConsumerWidget {
             const DialoguesTab({super.key});
 
             @override
             Widget build(BuildContext context, WidgetRef ref) {
-              final tts = ref.watch(ttsServiceProvider);
+              final tts = ref.watch(ttsProvider);
               final script = [
-                DialogueTurn(speaker: 'Receptionist', text: 'Good evening! Welcome to the Grand Hotel. How can I help you?', translation: 'مساء الخير! مرحباً بكم في فندق جراند. كيف أساعدك؟'),
-                DialogueTurn(speaker: 'You', text: 'Hello! I have a room reservation under the name Ahmed.', translation: 'مرحباً! لدي حجز غرفة باسم أحمد.'),
-                DialogueTurn(speaker: 'Receptionist', text: 'Perfect! Here is your room key on the 5th floor. Enjoy your stay!', translation: 'ممتاز! هذا مفتاح غرفتك في الطابق الخامس. إقامة ممتعة!'),
-                DialogueTurn(speaker: 'You', text: 'Thank you very much. What time is breakfast served?', translation: 'شكراً جزيلاً. في أي وقت يُقدم الإفطار؟'),
-                DialogueTurn(speaker: 'Receptionist', text: 'Breakfast is from 7:00 AM to 10:30 AM in the main dining hall.', translation: 'الإفطار من الساعة 7:00 صباحاً حتى 10:30 صباحاً في القاعة الرئيسية.'),
+                {'s': 'Receptionist', 't': 'Good evening! Welcome to the Grand Hotel. How can I help you?', 'ar': 'مساء الخير! مرحباً بكم في الفندق. كيف أساعدك؟', 'u': false},
+                {'s': 'You', 't': 'Hello! I have a room reservation under the name Ahmed.', 'ar': 'مرحباً! لدي حجز باسم أحمد.', 'u': true},
+                {'s': 'Receptionist', 't': 'Here is your key on the 5th floor. Enjoy your stay!', 'ar': 'هذا مفتاحك بالطابق الخامس. إقامة ممتعة!', 'u': false},
+                {'s': 'You', 't': 'Thank you! What time is breakfast served?', 'ar': 'شكراً! في أي وقت يقدم الإفطار؟', 'u': true},
+                {'s': 'Receptionist', 't': 'Breakfast is served from 7:00 AM to 10:00 AM.', 'ar': 'يقدم الإفطار من 7:00 حتى 10:00 صباحاً.', 'u': false},
               ];
 
-              return Scaffold(
-                appBar: AppBar(title: const Text('🎭 محادثة تفاعلية: حجز فندق')),
-                body: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: script.length,
-                  itemBuilder: (ctx, i) {
-                    final t = script[i];
-                    final isUser = t.speaker == 'You';
-                    return Align(
-                      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        padding: const EdgeInsets.all(14),
-                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
-                        decoration: BoxDecoration(
-                          color: isUser ? const Color(0xFF2563EB) : (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E1E1E) : Colors.grey.shade200),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                          children: [
-                            Text(t.speaker, style: TextStyle(fontWeight: FontWeight.bold, color: isUser ? Colors.white70 : const Color(0xFF3B82F6))),
-                            const SizedBox(height: 4),
-                            Text(t.text, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: isUser ? Colors.white : null)),
-                            const SizedBox(height: 2),
-                            Text(t.translation, style: TextStyle(fontSize: 13, color: isUser ? Colors.white60 : Colors.grey.shade600)),
-                            IconButton(
-                              icon: Icon(Icons.volume_up, size: 20, color: isUser ? Colors.white : const Color(0xFF3B82F6)),
-                              onPressed: () => tts.speak(t.text),
-                            )
-                          ],
-                        ),
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: script.length,
+                itemBuilder: (ctx, i) {
+                  final t = script[i];
+                  final isUser = t['u'] as bool;
+                  return Align(
+                    alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(12),
+                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+                      decoration: BoxDecoration(
+                        color: isUser ? const Color(0xFF2563EB) : (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E1E1E) : Colors.grey.shade200),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    );
-                  },
-                ),
+                      child: Column(
+                        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        children: [
+                          Text(t['s'] as String, style: TextStyle(fontWeight: FontWeight.bold, color: isUser ? Colors.white70 : const Color(0xFF3B82F6))),
+                          Text(t['t'] as String, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isUser ? Colors.white : null)),
+                          Text(t['ar'] as String, style: TextStyle(fontSize: 13, color: isUser ? Colors.white60 : Colors.grey.shade600)),
+                          IconButton(
+                            icon: Icon(Icons.volume_up, size: 20, color: isUser ? Colors.white : const Color(0xFF3B82F6)),
+                            onPressed: () => tts.speak(t['t'] as String),
+                          )
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             }
           }
 
-          // =========================================
-          // 11. TAB 4: PODCASTS STUDIO
-          // =========================================
-
+          // ----------------------------------------------------
+          // 10. TAB 4: PODCASTS
+          // ----------------------------------------------------
           class PodcastsTab extends ConsumerWidget {
             const PodcastsTab({super.key});
 
             @override
             Widget build(BuildContext context, WidgetRef ref) {
-              final tts = ref.watch(ttsServiceProvider);
+              final tts = ref.watch(ttsProvider);
               final episodes = [
-                PodcastEpisode(id: 'p1', title: 'Episode 1: The Fast Way to Fluency', description: 'أسرار واستراتيجيات التحدث بطلاقة يومياً', cefrLevel: 'A2', audioPath: '', durationSeconds: 180, transcript: [
-                  TranscriptSegment(text: 'Welcome to PolyglotMaster podcast.', startMs: 0, endMs: 2000),
-                  TranscriptSegment(text: 'To speak fluent English, practice 15 minutes every single day.', startMs: 2000, endMs: 5000),
-                  TranscriptSegment(text: 'Listen actively, repeat out loud, and don’t fear making mistakes!', startMs: 5000, endMs: 9000),
-                ]),
-                PodcastEpisode(id: 'p2', title: 'Episode 2: Mastering British & American Accents', description: 'الفروق الجوهرية في النطق بين اللهجتين', cefrLevel: 'B1', audioPath: '', durationSeconds: 240, transcript: [
-                  TranscriptSegment(text: 'Accent is music. Focus on vowels and rhythm.', startMs: 0, endMs: 3000),
-                ]),
+                {
+                  'title': 'Episode 1: The Fast Route to Fluency',
+                  'desc': 'أسرار واستراتيجيات التحدث بطلاقة يومياً',
+                  'text': 'Welcome to PolyglotMaster podcast. To speak fluent English, immerse yourself 15 minutes every single day. Listen actively, repeat aloud, and never fear making mistakes!'
+                },
+                {
+                  'title': 'Episode 2: Mastering British & American Accents',
+                  'desc': 'الفروق الجوهرية في النطق واللهجة',
+                  'text': 'Pronunciation is like music. Focus on vowels, word stress, and natural rhythm to sound clear and natural.'
+                },
               ];
 
               return ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: episodes.length,
                 itemBuilder: (ctx, i) {
-                  final p = episodes[i];
+                  final ep = episodes[i];
                   return Card(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -1475,26 +925,22 @@ jobs:
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(p.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                    Text('Level ${p.cefrLevel} • ${p.description}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                    Text(ep['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    Text(ep['desc']!, style: const TextStyle(color: Colors.grey, fontSize: 13)),
                                   ],
                                 ),
                               )
                             ],
                           ),
-                          const Divider(height: 24),
-                          ...p.transcript.map((s) => Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Text('🎙️ ${s.text}', style: const TextStyle(fontSize: 15, height: 1.4)),
-                              )),
+                          const Divider(height: 20),
+                          Text('🎙️ "${ep['text']!}"', style: const TextStyle(fontSize: 15, height: 1.4)),
                           const SizedBox(height: 12),
                           Center(
                             child: ElevatedButton.icon(
                               icon: const Icon(Icons.play_arrow),
-                              label: const Text('استمع للحلقة بالكامل (TTS Audio)'),
+                              label: const Text('استمع للحلقة بالكامل (Audio)'),
                               onPressed: () {
-                                final fullText = p.transcript.map((s) => s.text).join(' ');
-                                tts.speak(fullText);
+                                tts.speak(ep['text']!);
                                 ref.read(userProfileProvider.notifier).addXp(20);
                               },
                             ),
@@ -1508,40 +954,39 @@ jobs:
             }
           }
 
-          // =========================================
-          // 12. TAB 5: PROFILE & SETTINGS
-          // =========================================
-
+          // ----------------------------------------------------
+          // 11. TAB 5: PROFILE & SETTINGS
+          // ----------------------------------------------------
           class ProfileTab extends ConsumerWidget {
             const ProfileTab({super.key});
 
             @override
             Widget build(BuildContext context, WidgetRef ref) {
               final profile = ref.watch(userProfileProvider);
-              final tts = ref.watch(ttsServiceProvider);
+              final tts = ref.watch(ttsProvider);
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
                     CircleAvatar(
-                      radius: 45,
+                      radius: 40,
                       backgroundColor: const Color(0xFF2563EB),
-                      child: Text(profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : 'P', style: const TextStyle(fontSize: 38, fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: Text(profile.fullName.isNotEmpty ? profile.fullName[0].toUpperCase() : 'P', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
-                    const SizedBox(height: 12),
-                    Text(profile.fullName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                    Text('العمر: ${profile.age} سنة • المستوى: ${profile.cefrLevel}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
+                    Text(profile.fullName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text('العمر: ${profile.age} • المستوى: ${profile.cefrLevel}', style: const TextStyle(color: Colors.grey, fontSize: 15)),
+                    const SizedBox(height: 18),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _card('إجمالي النقاط', '${profile.totalXp} XP', Icons.stars, Colors.amber),
-                        _card('أيام الحماس', '${profile.streakDays} أيام', Icons.local_fire_department, Colors.orange),
-                        _card('القلوب', '${profile.hearts} / 5', Icons.favorite, Colors.red),
+                        _card('النقاط', '${profile.totalXp} XP', Icons.stars, Colors.amber),
+                        _card('الحماس', '${profile.streakDays}🔥', Icons.local_fire_department, Colors.orange),
+                        _card('القلوب', '${profile.hearts}❤️', Icons.favorite, Colors.red),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     Card(
                       child: Column(
                         children: [
@@ -1564,8 +1009,8 @@ jobs:
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    const Text('PolyglotMaster English v1.0.1 • 100% Offline Platform', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    const SizedBox(height: 16),
+                    const Text('PolyglotMaster English v1.0.1 • 100% Offline', style: TextStyle(color: Colors.grey, fontSize: 12)),
                   ],
                 ),
               );
@@ -1574,14 +1019,13 @@ jobs:
             Widget _card(String title, String val, IconData icon, Color c) {
               return Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Column(
                     children: [
-                      Icon(icon, color: c, size: 28),
-                      const SizedBox(height: 6),
-                      Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Icon(icon, color: c, size: 24),
+                      const SizedBox(height: 4),
+                      Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                       Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
@@ -1591,12 +1035,11 @@ jobs:
           }
           EOF
 
-          # 5. Build Optimized Production Release APK
           flutter pub get
-          flutter build apk --release
+          flutter build apk --debug
 
-      - name: Upload Production APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PolyglotMaster-English-v1.0.1-APK
-          path: polyglot_master/build/app/outputs/flutter-apk/app-release.apk
+          path: polyglot_master/build/app/outputs/flutter-apk/app-debug.apk

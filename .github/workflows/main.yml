@@ -1,0 +1,97 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Organize Project Files
+        run: |
+          python3 -c "
+          import os, shutil
+          
+          dirs = [
+              'lib/app',
+              'lib/domain/providers',
+              'lib/services/localization',
+              'lib/services/audio',
+              'lib/presentation/screens/onboarding',
+              'lib/presentation/screens/home',
+              'lib/presentation/screens/lesson',
+              'lib/presentation/screens/flashcards',
+              'lib/presentation/screens/dialogues',
+              'lib/presentation/screens/podcasts',
+              'lib/presentation/screens/profile',
+              'assets/locales'
+          ]
+          for d in dirs:
+              os.makedirs(d, exist_ok=True)
+
+          file_map = {
+              'main.dart': 'lib/main.dart',
+              'routes.dart': 'lib/app/routes.dart',
+              'theme.dart': 'lib/app/theme.dart',
+              'app.dart': 'lib/app/app.dart',
+              'localization_provider.dart': 'lib/domain/providers/localization_provider.dart',
+              'settings_provider.dart': 'lib/domain/providers/settings_provider.dart',
+              'progress_provider.dart': 'lib/domain/providers/progress_provider.dart',
+              'localization_service.dart': 'lib/services/localization/localization_service.dart',
+              'hybrid_audio_service.dart': 'lib/services/audio/hybrid_audio_service.dart',
+              'onboarding_screen.dart': 'lib/presentation/screens/onboarding/onboarding_screen.dart',
+              'home_screen.dart': 'lib/presentation/screens/home/home_screen.dart',
+              'lesson_screen.dart': 'lib/presentation/screens/lesson/lesson_screen.dart',
+              'flashcard_screen.dart': 'lib/presentation/screens/flashcards/flashcard_screen.dart',
+              'dialogue_screen.dart': 'lib/presentation/screens/dialogues/dialogue_screen.dart',
+              'podcast_player_screen.dart': 'lib/presentation/screens/podcasts/podcast_player_screen.dart',
+              'profile_screen.dart': 'lib/presentation/screens/profile/profile_screen.dart',
+              'ar.json': 'assets/locales/ar.json',
+              'en.json': 'assets/locales/en.json',
+              'pubspec.yaml': 'pubspec.yaml'
+          }
+
+          for root, _, files in os.walk('.'):
+              if '.git' in root:
+                  continue
+              for f in files:
+                  if f in file_map:
+                      src = os.path.join(root, f)
+                      dst = file_map[f]
+                      if os.path.abspath(src) != os.path.abspath(dst):
+                          shutil.copy2(src, dst)
+          print('All project files organized successfully.')
+          "
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Generate Android Scaffolding
+        run: flutter create . --platforms=android --org com.polyglotmaster.app
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PolyglotMaster-English-APK
+          path: build/app/outputs/flutter-apk/app-debug.apk

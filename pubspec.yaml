@@ -1,0 +1,44 @@
+name: polyglot_master
+description: Production-ready 100% offline English learning app (A1-C2).
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  flutter_riverpod: ^2.4.9
+  
+  # Local Database
+  sqflite: ^2.3.2
+  path_provider: ^2.1.1
+  path: ^1.9.0
+  
+  # Audio Engine (Files + TTS Fallback)
+  just_audio: ^0.9.36
+  flutter_tts: ^3.8.5
+  audio_video_progress_bar: ^0.11.0
+  
+  # Persistence & Settings
+  shared_preferences: ^2.2.2
+  
+  # Utilities
+  intl: ^0.18.1
+  equatable: ^2.0.5
+  google_fonts: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/data/
+    - assets/locales/

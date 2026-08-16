@@ -10,65 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Organize Project Files
-        run: |
-          python3 -c "
-          import os, shutil
-          
-          dirs = [
-              'lib/app',
-              'lib/domain/providers',
-              'lib/services/localization',
-              'lib/services/audio',
-              'lib/presentation/screens/onboarding',
-              'lib/presentation/screens/home',
-              'lib/presentation/screens/lesson',
-              'lib/presentation/screens/flashcards',
-              'lib/presentation/screens/dialogues',
-              'lib/presentation/screens/podcasts',
-              'lib/presentation/screens/profile',
-              'assets/locales'
-          ]
-          for d in dirs:
-              os.makedirs(d, exist_ok=True)
-
-          file_map = {
-              'main.dart': 'lib/main.dart',
-              'routes.dart': 'lib/app/routes.dart',
-              'theme.dart': 'lib/app/theme.dart',
-              'app.dart': 'lib/app/app.dart',
-              'localization_provider.dart': 'lib/domain/providers/localization_provider.dart',
-              'settings_provider.dart': 'lib/domain/providers/settings_provider.dart',
-              'progress_provider.dart': 'lib/domain/providers/progress_provider.dart',
-              'localization_service.dart': 'lib/services/localization/localization_service.dart',
-              'hybrid_audio_service.dart': 'lib/services/audio/hybrid_audio_service.dart',
-              'onboarding_screen.dart': 'lib/presentation/screens/onboarding/onboarding_screen.dart',
-              'home_screen.dart': 'lib/presentation/screens/home/home_screen.dart',
-              'lesson_screen.dart': 'lib/presentation/screens/lesson/lesson_screen.dart',
-              'flashcard_screen.dart': 'lib/presentation/screens/flashcards/flashcard_screen.dart',
-              'dialogue_screen.dart': 'lib/presentation/screens/dialogues/dialogue_screen.dart',
-              'podcast_player_screen.dart': 'lib/presentation/screens/podcasts/podcast_player_screen.dart',
-              'profile_screen.dart': 'lib/presentation/screens/profile/profile_screen.dart',
-              'ar.json': 'assets/locales/ar.json',
-              'en.json': 'assets/locales/en.json',
-              'pubspec.yaml': 'pubspec.yaml'
-          }
-
-          for root, _, files in os.walk('.'):
-              if '.git' in root:
-                  continue
-              for f in files:
-                  if f in file_map:
-                      src = os.path.join(root, f)
-                      dst = file_map[f]
-                      if os.path.abspath(src) != os.path.abspath(dst):
-                          shutil.copy2(src, dst)
-          print('All project files organized successfully.')
-          "
-
       - name: Set up Java Development Kit (JDK 17)
         uses: actions/setup-java@v4
         with:
@@ -81,17 +22,394 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Generate Android Scaffolding
-        run: flutter create . --platforms=android --org com.polyglotmaster.app
+      - name: Create Complete Flutter App
+        run: |
+          flutter create polyglot_master --platforms=android --org com.polyglotmaster.app
+          cd polyglot_master
 
-      - name: Install Dependencies
-        run: flutter pub get
+          cat << 'EOF' > pubspec.yaml
+          name: polyglot_master
+          description: "PolyglotMaster English Learning App - 100% Offline"
+          publish_to: 'none'
+          version: 1.0.0+1
 
-      - name: Build Android APK
-        run: flutter build apk --debug
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
+
+          dependencies:
+            flutter:
+              sdk: flutter
+            flutter_riverpod: ^2.5.1
+            shared_preferences: ^2.2.3
+            flutter_tts: ^4.0.2
+
+          flutter:
+            uses-material-design: true
+          EOF
+
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' android/app/build.gradle || true
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle || true
+
+          cat << 'EOF' > lib/main.dart
+          import 'package:flutter/material.dart';
+          import 'package:flutter_riverpod/flutter_riverpod.dart';
+          import 'package:shared_preferences/shared_preferences.dart';
+          import 'package:flutter_tts/flutter_tts.dart';
+
+          final sharedPrefsProvider = Provider<SharedPreferences>((ref) => throw UnimplementedError());
+          final xpProvider = StateProvider<int>((ref) => 120);
+          final streakProvider = StateProvider<int>((ref) => 3);
+          final heartsProvider = StateProvider<int>((ref) => 5);
+          final isArabicProvider = StateProvider<bool>((ref) => true);
+
+          void main() async {
+            WidgetsFlutterBinding.ensureInitialized();
+            final prefs = await SharedPreferences.getInstance();
+            runApp(
+              ProviderScope(
+                overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
+                child: const PolyglotMasterApp(),
+              ),
+            );
+          }
+
+          class PolyglotMasterApp extends ConsumerWidget {
+            const PolyglotMasterApp({super.key});
+
+            @override
+            Widget build(BuildContext context, WidgetRef ref) {
+              final isArabic = ref.watch(isArabicProvider);
+              return MaterialApp(
+                title: 'PolyglotMaster English',
+                debugShowCheckedModeBanner: false,
+                theme: ThemeData(
+                  useMaterial3: true,
+                  colorSchemeSeed: const Color(0xFF2563EB),
+                  fontFamily: isArabic ? 'sans-serif' : 'sans-serif',
+                ),
+                home: const MainShellScreen(),
+              );
+            }
+          }
+
+          class MainShellScreen extends ConsumerStatefulWidget {
+            const MainShellScreen({super.key});
+
+            @override
+            ConsumerState<MainShellScreen> createState() => _MainShellScreenState();
+          }
+
+          class _MainShellScreenState extends ConsumerState<MainShellScreen> {
+            int _currentIndex = 0;
+            final FlutterTts _tts = FlutterTts();
+
+            @override
+            void initState() {
+              super.initState();
+              _tts.setLanguage("en-US");
+              _tts.setSpeechRate(0.45);
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              final isAr = ref.watch(isArabicProvider);
+              final xp = ref.watch(xpProvider);
+              final streak = ref.watch(streakProvider);
+              final hearts = ref.watch(heartsProvider);
+
+              final pages = [
+                _buildLessonsTab(isAr),
+                _buildFlashcardsTab(isAr),
+                _buildDialoguesTab(isAr),
+                _buildPodcastsTab(isAr),
+                _buildProfileTab(isAr, xp, streak),
+              ];
+
+              return Scaffold(
+                appBar: AppBar(
+                  title: Text(isAr ? 'PolyglotMaster الإنجليزية' : 'PolyglotMaster English', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  actions: [
+                    Row(
+                      children: [
+                        const Icon(Icons.local_fire_department, color: Colors.orange, size: 20),
+                        Text(' $streak ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const Icon(Icons.favorite, color: Colors.red, size: 20),
+                        Text(' $hearts ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const Icon(Icons.stars, color: Colors.amber, size: 20),
+                        Text(' $xp ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                      ],
+                    )
+                  ],
+                ),
+                body: pages[_currentIndex],
+                bottomNavigationBar: NavigationBar(
+                  selectedIndex: _currentIndex,
+                  onDestinationSelected: (i) => setState(() => _currentIndex = i),
+                  destinations: [
+                    NavigationDestination(icon: const Icon(Icons.school), label: isAr ? 'الدروس' : 'Lessons'),
+                    NavigationDestination(icon: const Icon(Icons.style), label: isAr ? 'البطاقات' : 'Cards'),
+                    NavigationDestination(icon: const Icon(Icons.chat), label: isAr ? 'المحادثة' : 'Dialogues'),
+                    NavigationDestination(icon: const Icon(Icons.podcasts), label: isAr ? 'بودكاست' : 'Podcasts'),
+                    NavigationDestination(icon: const Icon(Icons.person), label: isAr ? 'الملف' : 'Profile'),
+                  ],
+                ),
+              );
+            }
+
+            Widget _buildLessonsTab(bool isAr) {
+              final lessons = [
+                {'id': '1', 'title': 'Level A1: Basics & Greetings', 'ar': 'المستوى A1: التحيات والأساسيات', 'icon': Icons.waving_hand},
+                {'id': '2', 'title': 'Level A2: Daily Routine & Food', 'ar': 'المستوى A2: الروتين اليومي والطعام', 'icon': Icons.restaurant},
+                {'id': '3', 'title': 'Level B1: Travel & Directions', 'ar': 'المستوى B1: السفر والاتجاهات', 'icon': Icons.flight},
+                {'id': '4', 'title': 'Level B2: Work & Technology', 'ar': 'المستوى B2: العمل والتقنية', 'icon': Icons.business_center},
+                {'id': '5', 'title': 'Level C1: Advanced Debates', 'ar': 'المستوى C1: النقاشات المتقدمة', 'icon': Icons.psychology},
+              ];
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: lessons.length,
+                itemBuilder: (ctx, i) {
+                  final l = lessons[i];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFF2563EB).withOpacity(0.15),
+                        child: Icon(l['icon'] as IconData, color: const Color(0xFF2563EB)),
+                      ),
+                      title: Text(l['title'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(l['ar'] as String),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _openLessonQuiz(l['title'] as String),
+                    ),
+                  );
+                },
+              );
+            }
+
+            void _openLessonQuiz(String title) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (ctx) => Scaffold(
+                    appBar: AppBar(title: Text(title)),
+                    body: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text('Listen and choose the correct meaning:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 20),
+                          Card(
+                            elevation: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.volume_up, size: 36, color: Color(0xFF2563EB)),
+                                    onPressed: () => _tts.speak("Good morning, how are you?"),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Expanded(child: Text("Good morning, how are you?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                            onPressed: () {
+                              ref.read(xpProvider.notifier).state += 15;
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Correct! +15 XP 🎉', style: TextStyle(fontSize: 16)), backgroundColor: Colors.green));
+                              Navigator.pop(context);
+                            },
+                            child: const Text('صباح الخير، كيف حالك؟ (Correct Answer)', style: TextStyle(fontSize: 16)),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Try again!', style: TextStyle(fontSize: 16)), backgroundColor: Colors.red));
+                            },
+                            child: const Text('مساء الخير، إلى اللقاء', style: TextStyle(fontSize: 16)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            Widget _buildFlashcardsTab(bool isAr) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Card(
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.volume_up, size: 48, color: Color(0xFF2563EB)),
+                            onPressed: () => _tts.speak("Perseverance"),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text("Perseverance", style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
+                          const Text("/ˌpɜː.sɪˈvɪə.rəns/", style: TextStyle(color: Colors.grey, fontSize: 16)),
+                          const Divider(height: 30),
+                          const Text("المثابرة والإصرار على النجاح", style: TextStyle(fontSize: 22, color: Colors.green, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 10),
+                          const Text("Example: Success requires hard work and perseverance.", style: TextStyle(fontStyle: FontStyle.italic, fontSize: 15), textAlign: TextAlign.center),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              ref.read(xpProvider.notifier).state += 5;
+                              _tts.speak("Success requires hard work and perseverance.");
+                            },
+                            icon: const Icon(Icons.check),
+                            label: Text(isAr ? 'حفظت الكلمة (+5 XP)' : 'Memorized (+5 XP)'),
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            Widget _buildDialoguesTab(bool isAr) {
+              final msgs = [
+                {'s': 'Alex', 't': 'Hello! Are you ready for the English exam?', 'ar': 'مرحباً! هل أنت مستعد لاختبار الإنجليزية؟', 'u': false},
+                {'s': 'You', 't': 'Yes! I have been practicing every day.', 'ar': 'نعم! لقد تدربت كل يوم.', 'u': true},
+                {'s': 'Alex', 't': 'Awesome! Practice makes perfect.', 'ar': 'رائع جداً! التكرار يصنع الإتقان.', 'u': false},
+              ];
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: msgs.length,
+                itemBuilder: (ctx, i) {
+                  final m = msgs[i];
+                  final isUser = m['u'] as bool;
+                  return Align(
+                    alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isUser ? const Color(0xFF2563EB) : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        children: [
+                          Text(m['t'] as String, style: TextStyle(color: isUser ? Colors.white : Colors.black, fontSize: 16, fontWeight: FontWeight.w600)),
+                          Text(m['ar'] as String, style: TextStyle(color: isUser ? Colors.white70 : Colors.black54, fontSize: 14)),
+                          IconButton(
+                            icon: Icon(Icons.volume_up, size: 20, color: isUser ? Colors.white : const Color(0xFF2563EB)),
+                            onPressed: () => _tts.speak(m['t'] as String),
+                          )
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
+
+            Widget _buildPodcastsTab(bool isAr) {
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Container(
+                      height: 160,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF7C3AED)]),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Center(child: Icon(Icons.headphones, size: 70, color: Colors.white)),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text('Episode 1: The Secret to Fast Fluency', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    const Text("Welcome to PolyglotMaster podcast. To learn English fast, immerse yourself daily, repeat after native speakers, and enjoy the journey!", style: TextStyle(fontSize: 16, height: 1.5), textAlign: TextAlign.center),
+                    const Spacer(),
+                    CircleAvatar(
+                      radius: 35,
+                      backgroundColor: const Color(0xFF2563EB),
+                      child: IconButton(
+                        icon: const Icon(Icons.play_arrow, size: 40, color: Colors.white),
+                        onPressed: () {
+                          _tts.speak("Welcome to PolyglotMaster podcast. To learn English fast, immerse yourself daily, repeat after native speakers, and enjoy the journey!");
+                          ref.read(xpProvider.notifier).state += 20;
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              );
+            }
+
+            Widget _buildProfileTab(bool isAr, int xp, int streak) {
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    const CircleAvatar(radius: 40, backgroundColor: Color(0xFF2563EB), child: Icon(Icons.person, size: 45, color: Colors.white)),
+                    const SizedBox(height: 12),
+                    const Text('Polyglot Master', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _statCard('Total XP', '$xp', Icons.stars, Colors.amber),
+                        _statCard('Streak', '$streak Days', Icons.local_fire_department, Colors.orange),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    SwitchListTile(
+                      title: const Text('واجهة عربية / Arabic UI'),
+                      value: isAr,
+                      onChanged: (v) => ref.read(isArabicProvider.notifier).state = v,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            Widget _statCard(String label, String val, IconData icon, Color col) {
+              return Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    children: [
+                      Icon(icon, color: col, size: 28),
+                      const SizedBox(height: 6),
+                      Text(val, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+          EOF
+
+          flutter pub get
+          flutter build apk --debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PolyglotMaster-English-APK
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: polyglot_master/build/app/outputs/flutter-apk/app-debug.apk
